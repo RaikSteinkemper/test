@@ -1,0 +1,13 @@
+export MODEL_ID="mistralai/Mistral-7B-v0.1"
+export REVISION="<commit-sha>"                  # nicht "main"
+export STAGING_DIR="/data/staging/mistral-7b"   # NICHT das PVC
+export HF_XET_HIGH_PERFORMANCE=1
+
+uvx --from "huggingface_hub==2.2.0" hf download "$MODEL_ID" \
+  --revision "$REVISION" \
+  --local-dir "$STAGING_DIR" \
+  --exclude "*.bin" --exclude "*.pt" --exclude "*.pth" --exclude "*.ckpt" \
+  --exclude "*.pkl" --exclude "*.pickle" --exclude "*.joblib" --exclude "*.py"
+
+docker run --rm -v "$STAGING_DIR:/model:ro" model-scan /model \
+  && cp -r "$STAGING_DIR" /pfad/zum/pvc/   # nur bei Exit 0
