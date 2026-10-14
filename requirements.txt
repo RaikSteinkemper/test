@@ -1,0 +1,4 @@
+modelscan[h5py]==0.8.8
+picklescan==1.0.5
+# modelscan nutzt numpy.lib.format._check_version, das ab numpy 2.3 fehlt
+numpy<2.3
