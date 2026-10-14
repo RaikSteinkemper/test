@@ -1,35 +1,30 @@
 #!/usr/bin/env python3
-"""Scannt heruntergeladene Modelle mit modelscan (Protect AI), picklescan und ClamAV.
+"""Scannt heruntergeladene Modelle mit ModelAudit (promptfoo), picklescan und ClamAV.
 
 Aufruf:  python scan_models.py /pfad/zum/modell [--report report.json]
 Exit:    0 = sauber, 1 = Befund, 2 = Scanfehler
 """
 import argparse
 import json
+import os
 import subprocess
 import sys
 import tempfile
 from pathlib import Path
 
+ENV = {**os.environ, "PROMPTFOO_DISABLE_TELEMETRY": "1"}  # ModelAudit sendet sonst Nutzungsdaten
 
-def run_modelscan(path: Path) -> dict:
+
+def run_modelaudit(path: Path) -> dict:
     with tempfile.TemporaryDirectory() as tmp:
-        out = Path(tmp) / "modelscan.json"
+        out = Path(tmp) / "modelaudit.json"
         proc = subprocess.run(
-            ["modelscan", "scan", "-p", str(path), "-r", "json", "-o", str(out), "-l", "ERROR"],
-            capture_output=True, text=True,
+            ["modelaudit", "scan", str(path), "--format", "json", "--output", str(out), "--no-cache", "--quiet"],
+            capture_output=True, text=True, env=ENV,
         )
         report = json.loads(out.read_text()) if out.exists() else None
-    # Exit-Codes: 0 sauber, 1 Befund, 2 Fehler, 3 keine unterstützten Dateien (z. B. nur .safetensors).
-    # Der Report ist genauer als der Exit-Code (Befunde UND Fehler können gleichzeitig auftreten).
-    if report and report["summary"]["total_issues"] > 0:
-        status = "issues"
-    elif proc.returncode == 2 or (report and report.get("errors")):
-        status = "error"
-    elif proc.returncode in (0, 3):
-        status = "clean"
-    else:
-        status = "error"
+    # Exit-Codes: 0 sauber, 1 Befund (auch Warnungen), 2 Fehler
+    status = {0: "clean", 1: "issues"}.get(proc.returncode, "error")
     return {"exit_code": proc.returncode, "status": status, "report": report, "stderr": proc.stderr[-2000:]}
 
 
@@ -68,7 +63,7 @@ def main() -> int:
         return 2
 
     results = {
-        "modelscan": run_modelscan(args.path),
+        "modelaudit": run_modelaudit(args.path),
         "picklescan": run_picklescan(args.path),
         "clamav": run_clamav(args.path),
     }
